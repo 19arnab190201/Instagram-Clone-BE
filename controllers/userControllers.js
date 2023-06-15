@@ -1,4 +1,6 @@
 const User = require("../models/user");
+const Post = require("../models/post");
+
 const BigPromise = require("../middlewares/bigPromise");
 const CustomError = require("../utils/customError");
 const cookieToken = require("../utils/cookieToken");
@@ -128,8 +130,8 @@ exports.passwordReset = BigPromise(async (req, res, next) => {
 });
 
 exports.getLoggedInUserDetails = BigPromise(async (req, res, next) => {
-  const user = await User.findById(req.body.id);
-  // console.log("user", user);
+  const user = await User.findById(req.params.id);
+  console.log("user", user, req.params.id);
 
   res.status(200).json({
     status: true,
@@ -226,5 +228,71 @@ exports.followUser = BigPromise(async (req, res, next) => {
   res.status(200).json({
     success: true,
     message: "Follow request sent",
+  });
+});
+
+exports.acceptFollowRequest = BigPromise(async (req, res, next) => {
+  const user = await User.findById(req.user._id);
+  console.log("user", user);
+  if (!user) {
+    return next(new CustomError("User not found", 404));
+  }
+
+  await User.findByIdAndUpdate(
+    req.user._id,
+    { $pull: { followRequests: req.body.id } },
+    { new: true }
+  );
+
+  await User.findByIdAndUpdate(
+    req.body.id,
+    { $addToSet: { userFollowers: req.user._id } },
+    { new: true }
+  );
+
+  await User.findByIdAndUpdate(
+    req.user._id,
+    { $addToSet: { userFollowing: req.body.id } },
+    { new: true }
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Follow request accepted",
+  });
+});
+
+exports.searchUser = BigPromise(async (req, res, next) => {
+  const searchTerm = req.query.q;
+  const users = await User.find({
+    $or: [
+      { name: { $regex: searchTerm, $options: "i" } },
+      { userName: { $regex: searchTerm, $options: "i" } },
+      { email: { $regex: searchTerm, $options: "i" } },
+    ],
+  });
+  res.status(200).json({
+    success: true,
+    users,
+  });
+});
+
+exports.getFeed = BigPromise(async (req, res, next) => {
+  // Get the user ID from the request (assuming it's sent as a query parameter)
+  const userId = req.params.id;
+
+  // Get the user's following list
+  const user = await User.findById(userId);
+  const following = user.userFollowing;
+
+  // Find posts from the user's following list
+  const posts = await Post.find({ postOwner: { $in: following } })
+    .populate("postOwner", "name userName profilePhoto")
+    .sort("-createdAt")
+    .limit(10);
+
+  res.status(200).json({
+    success: true,
+    posts,
   });
 });

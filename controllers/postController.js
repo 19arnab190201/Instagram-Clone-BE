@@ -64,7 +64,8 @@ exports.createPost = BigPromise(async (req, res, next) => {
 });
 
 exports.getAllPosts = BigPromise(async (req, res, next) => {
-  const userId = req.body.userId;
+  const userId = req.params.id;
+  console.log("USER ID", userId);
   const posts = await Post.find({ postOwner: userId });
 
   res.status(200).json({
@@ -72,4 +73,25 @@ exports.getAllPosts = BigPromise(async (req, res, next) => {
     message: "All posts",
     posts,
   });
+});
+
+exports.likePost = BigPromise(async (req, res, next) => {
+  const postId = req.params.id;
+  //apphend user id to postLikes
+  console.log(postId);
+  const post = await Post.findByIdAndUpdate(
+    postId,
+    { $addToSet: { postLikes: req.user._id } },
+    { new: true }
+  );
+
+  res.status(200).json({
+    status: "success",
+    message: "Post Liked",
+    post,
+  });
+});
+
+exports.commentPost = BigPromise(async (req, res, next) => {
+  const { postId, comment } = req.body;
 });
